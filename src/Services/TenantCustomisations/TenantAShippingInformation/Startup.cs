@@ -1,43 +1,41 @@
-﻿namespace Microsoft.eShopOnContainers.Services.TenantACustomisations
-{
-    using AspNetCore.Http;
-    using Autofac;
-    using Autofac.Extensions.DependencyInjection;
-    using Microsoft.ApplicationInsights.Extensibility;
-    using Microsoft.ApplicationInsights.ServiceFabric;
-    using Microsoft.AspNetCore.Authentication.JwtBearer;
-    using Microsoft.AspNetCore.Builder;
-    using Microsoft.AspNetCore.Hosting;
-    using Microsoft.AspNetCore.Mvc;
-    using Microsoft.Azure.ServiceBus;
-    using Microsoft.EntityFrameworkCore;
-    using Microsoft.eShopOnContainers.BuildingBlocks.EventBus;
-    using Microsoft.eShopOnContainers.BuildingBlocks.EventBus.Abstractions;
-    using Microsoft.eShopOnContainers.BuildingBlocks.EventBusRabbitMQ;
-    using Microsoft.eShopOnContainers.BuildingBlocks.EventBusServiceBus;
-    using Microsoft.eShopOnContainers.BuildingBlocks.IntegrationEventLogEF;
-    using Microsoft.eShopOnContainers.BuildingBlocks.IntegrationEventLogEF.Services;
-    using Microsoft.Extensions.Configuration;
-    using Microsoft.Extensions.DependencyInjection;
-    using Microsoft.Extensions.Logging;
-    using RabbitMQ.Client;
-    using Swashbuckle.AspNetCore.Swagger;
-    using System;
-    using System.Collections.Generic;
-    using System.Data.Common;
-    using System.IdentityModel.Tokens.Jwt;
-    using System.Reflection;
-    using HealthChecks.UI.Client;
-    using Microsoft.AspNetCore.Diagnostics.HealthChecks;
-    using Microsoft.Extensions.Diagnostics.HealthChecks;
-    using Infrastructure.AutofacModules;
-    using Microsoft.eShopOnContainers.Services.TenantACustomisations.Infrastructure.Filters;
-    using global::TenantACustomisations.Infrastructure.Filters;
-    using Microsoft.eShopOnContainers.BuildingBlocks.EventBus.Events;
-    using global::TenantACustomisations.IntegrationEvents.Events;
-    using global::TenantACustomisations.ExternalServices;
-    using global::TenantACustomisations.Database;
+using System;
+using System.Collections.Generic;
+using System.Data.Common;
+using System.IdentityModel.Tokens.Jwt;
+using System.Reflection;
+using Autofac;
+using Autofac.Extensions.DependencyInjection;
+using HealthChecks.UI.Client;
+using Microsoft.ApplicationInsights.Extensibility;
+using Microsoft.ApplicationInsights.ServiceFabric;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Azure.ServiceBus;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.eShopOnContainers.BuildingBlocks.EventBus;
+using Microsoft.eShopOnContainers.BuildingBlocks.EventBus.Abstractions;
+using Microsoft.eShopOnContainers.BuildingBlocks.EventBusRabbitMQ;
+using Microsoft.eShopOnContainers.BuildingBlocks.EventBusServiceBus;
+using Microsoft.eShopOnContainers.BuildingBlocks.IntegrationEventLogEF;
+using Microsoft.eShopOnContainers.BuildingBlocks.IntegrationEventLogEF.Services;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Logging;
+using RabbitMQ.Client;
+using Swashbuckle.AspNetCore.Swagger;
+using TenantAShippingInformation.Database;
+using TenantAShippingInformation.Infrastructure.AutofacModules;
+using TenantAShippingInformation;
+using TenantAShippingInformation.Infrastructure.Filters;
+using TenantAShippingInformation.IntegrationEvents.EventHandling;
+using TenantAShippingInformation.IntegrationEvents.Events;
 
+namespace TenantAShippingInformation
+{
     public class Startup
     {
         public Startup(IConfiguration configuration)
@@ -119,10 +117,10 @@
 
         private void ConfigureEventBus(IApplicationBuilder app)
         {
-            var eventBus = app.ApplicationServices.GetRequiredService<BuildingBlocks.EventBus.Abstractions.IEventBus>();
+            var eventBus = app.ApplicationServices.GetRequiredService<Microsoft.eShopOnContainers.BuildingBlocks.EventBus.Abstractions.IEventBus>();
 
             //eventBus.Subscribe<UserCheckoutAcceptedIntegrationEvent, IIntegrationEventHandler<UserCheckoutAcceptedIntegrationEvent>>();
-            //eventBus.Subscribe<OrderStatusChangedToSubmittedIntegrationEvent, OrderStatusChangedToSubmittedIntegrationEventHandler>();
+            eventBus.Subscribe<OrderStatusChangedToSubmittedIntegrationEvent, OrderStatusChangedToSubmittedIntegrationEventHandler>();
 
         }
 
