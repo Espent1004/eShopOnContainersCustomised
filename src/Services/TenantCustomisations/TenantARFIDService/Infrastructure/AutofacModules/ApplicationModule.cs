@@ -20,7 +20,7 @@ namespace TenantARFIDService.Infrastructure.AutofacModules
 
         protected override void Load(ContainerBuilder builder)
         {
-            builder.RegisterAssemblyTypes(typeof(OrderStatusChangedToSubmittedIntegrationEventHandler).GetTypeInfo().Assembly)
+            builder.RegisterAssemblyTypes(typeof(OrderStatusChangedToAwaitingValidationSavedIntegrationEventHandler).GetTypeInfo().Assembly)
                         .AsClosedTypesOf(typeof(IIntegrationEventHandler<>));
             
         }

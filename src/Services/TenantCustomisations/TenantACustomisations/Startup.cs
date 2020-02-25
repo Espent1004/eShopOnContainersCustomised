@@ -1,4 +1,6 @@
-﻿namespace Microsoft.eShopOnContainers.Services.TenantACustomisations
+﻿using Microsoft.eShopOnContainers.Services.TenantACustomisations.IntegrationEvents.EventHandling;
+
+namespace Microsoft.eShopOnContainers.Services.TenantACustomisations
 {
     using AspNetCore.Http;
     using Autofac;
@@ -120,10 +122,7 @@
         private void ConfigureEventBus(IApplicationBuilder app)
         {
             var eventBus = app.ApplicationServices.GetRequiredService<BuildingBlocks.EventBus.Abstractions.IEventBus>();
-
-            //eventBus.Subscribe<UserCheckoutAcceptedIntegrationEvent, IIntegrationEventHandler<UserCheckoutAcceptedIntegrationEvent>>();
-            //eventBus.Subscribe<OrderStatusChangedToSubmittedIntegrationEvent, OrderStatusChangedToSubmittedIntegrationEventHandler>();
-
+            eventBus.Subscribe<RFIDScannedIntegrationEvent, RFIDScannedIntegrationEventHandler>();
         }
 
         protected virtual void ConfigureAuth(IApplicationBuilder app)
