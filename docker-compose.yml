@@ -58,6 +58,14 @@ services:
       dockerfile: src/Services/TenantCustomisations/TenantAShippingInformation/Dockerfile
     depends_on:
       - sql.data
+
+  tenantarfidservice:
+    image:  ${REGISTRY:-eshop}/tenantashippinginformation:${PLATFORM:-linux}-${TAG:-latest}
+    build:
+      context: .
+      dockerfile: src/Services/TenantCustomisations/TenantARFIDService/Dockerfile
+    depends_on:
+      - sql.data
       
   tenantbshippinginformation:
     image:  ${REGISTRY:-eshop}/tenantbshippinginformation:${PLATFORM:-linux}-${TAG:-latest}
