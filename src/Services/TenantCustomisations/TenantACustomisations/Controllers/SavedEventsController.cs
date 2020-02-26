@@ -119,7 +119,28 @@ namespace TenantACustomisations.Controllers
         {
             _context.SavedEvent.Add(savedEvent);
             await _context.SaveChangesAsync();
-
+            if (savedEvent.EventName.Equals("OrderStatusChangedToAwaitingValidationIntegrationEvent"))
+            {
+                var integrationEvent =JsonConvert.DeserializeObject(savedEvent.Content, GetEventTypeByName(savedEvent.EventName));
+                IntegrationEvent evt = (IntegrationEvent)integrationEvent;
+                OrderStatusChangedToAwaitingValidationIntegrationEvent orderStatusChangedToAwaitingValidationIntegrationEvent = (OrderStatusChangedToAwaitingValidationIntegrationEvent)evt;
+                OrderStatusChangedToAwaitingValidationSavedIntegrationEvent orderStatusChangedToAwaitingValidationSavedIntegrationEvent = new OrderStatusChangedToAwaitingValidationSavedIntegrationEvent(orderStatusChangedToAwaitingValidationIntegrationEvent.OrderId.ToString(),orderStatusChangedToAwaitingValidationIntegrationEvent.Id.ToString());
+                orderStatusChangedToAwaitingValidationSavedIntegrationEvent.CheckForCustomisation = false;
+                try
+                {
+                    _logger.LogInformation(
+                        "----- Publishing integration event: {IntegrationEventId} from SavedEventsController - ({@IntegrationEvent})",
+                        orderStatusChangedToAwaitingValidationSavedIntegrationEvent.Id, orderStatusChangedToAwaitingValidationSavedIntegrationEvent);
+                    _eventBus.Publish(orderStatusChangedToAwaitingValidationSavedIntegrationEvent);
+                }
+                catch (Exception e)
+                {
+                    _logger.LogError(e,
+                        "ERROR Publishing integration event: {IntegrationEventId} from OrderStatusChangedToSubmittedIntegrationEventsController",
+                        orderStatusChangedToAwaitingValidationSavedIntegrationEvent.Id);
+                    throw;
+                }
+            }
             return CreatedAtAction("GetSavedEvent", new {id = savedEvent.SavedEventId}, savedEvent);
         }
 
@@ -155,12 +176,6 @@ namespace TenantACustomisations.Controllers
 
                 throw;
             }
-
-
-            _context.SavedEvent.Remove(savedEvent);
-            await _context.SaveChangesAsync();
-
-            return savedEvent;
         }
 
         private bool SavedEventExists(string id)

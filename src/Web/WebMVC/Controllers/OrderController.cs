@@ -22,7 +22,7 @@ namespace Microsoft.eShopOnContainers.WebMVC.Controllers
         private IOrderingService _orderSvc;
         private IBasketService _basketSvc;
         private readonly IIdentityParser<ApplicationUser> _appUserParser;
-        private static String tenantACustomisationsUrl = @"http://tenantacustomisation/";
+        private static String tenantACustomisationsUrl = @"http://tenantarfidservice/";
         private static String tenantAShippingInformationUrl = @"http://tenantashippinginformation/";
         private static String tenantBShippingInformationUrl = @"http://tenantbshippinginformation/";
         private readonly ILogger<OrderController> _logger;
@@ -119,10 +119,9 @@ namespace Microsoft.eShopOnContainers.WebMVC.Controllers
 
         private async Task<Boolean> AllGoodsRFIDScanned(String orderId)
         {
-            var builder = new UriBuilder(tenantACustomisationsUrl + "api/SavedEvents");
+            var builder = new UriBuilder(tenantACustomisationsUrl + "api/order/" + orderId);
             builder.Port = -1;
             var query = HttpUtility.ParseQueryString(builder.Query);
-            query["orderId"] = orderId;
             builder.Query = query.ToString();
             string url = builder.ToString();
 
@@ -132,10 +131,13 @@ namespace Microsoft.eShopOnContainers.WebMVC.Controllers
                     url);
                 if (response.StatusCode.Equals(HttpStatusCode.NotFound))
                 {
-                    return true;
+                    return false;
                 }
 
-                return false;
+                string result = response.Content.ReadAsStringAsync().Result;
+                _logger.LogInformation("----- Result{@result} -----", result);
+                var order = JsonConvert.DeserializeObject<OrderDTO>(result);
+                return order.RFIDScanned;
             }
         }
 

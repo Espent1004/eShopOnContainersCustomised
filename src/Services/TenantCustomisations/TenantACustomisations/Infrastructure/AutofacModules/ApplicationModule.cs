@@ -1,5 +1,6 @@
 ﻿using Autofac;
 using Microsoft.eShopOnContainers.BuildingBlocks.EventBus.Abstractions;
+using Microsoft.eShopOnContainers.Services.TenantACustomisations.IntegrationEvents.EventHandling;
 using System.Reflection;
 using TenantACustomisations.ExternalServices;
 using TenantACustomisations.IntegrationEvents.Events;
@@ -21,9 +22,9 @@ namespace Microsoft.eShopOnContainers.Services.TenantACustomisations.Infrastruct
 
         protected override void Load(ContainerBuilder builder)
         {
-            /*builder.RegisterAssemblyTypes(typeof(UserCheckoutAcceptedIntegrationEvent).GetTypeInfo().Assembly)
-                        .AsClosedTypesOf(typeof(IIntegrationEventHandler<>));*/
-            
+            builder.RegisterAssemblyTypes(typeof(RFIDScannedIntegrationEventHandler).GetTypeInfo().Assembly)
+                           .AsClosedTypesOf(typeof(IIntegrationEventHandler<>));
+
         }
     }
 }
