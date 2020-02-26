@@ -36,6 +36,21 @@ namespace TenantARFIDService.Controllers
             return await _context.Orders.ToListAsync();
         }
 
+        // GET: api/order/5
+        [HttpGet("{orderNumber}")]
+        public async Task<ActionResult<Order>> GetOrder(String orderNumber)
+        {
+            var order =
+                await _context.Orders.Where(o => o.OrderNumber.Equals(orderNumber)).FirstOrDefaultAsync();
+
+            if (order == null)
+            {
+                return NotFound();
+            }
+
+            return order;
+        }
+
         //SET SCANNED
         // PUT: api/Order/5
         [HttpPut("{id}")]

@@ -15,6 +15,10 @@
     <partial name="_Header" model="headerList"/>
 
     <div class="container">
+        @if (rfidScanned != null)
+        {
+            <div style="color: red">This page has been customised for Tenant Alpha</div>
+        }
         <section class="esh-orders_detail-section">
             <article class="esh-orders_detail-titles row">
                 <section class="esh-orders_detail-title col-2">Order number</section>
@@ -23,7 +27,7 @@
                 <section class="esh-orders_detail-title col-2">Status</section>
                 @if (rfidScanned != null)
                 {
-                    <section class="esh-orders_detail-title col-2">RFID Scanned</section>
+                    <section class="esh-orders_detail-title col-2" style="color: red">RFID Scanned</section>
                 }
             </article>
 
@@ -34,7 +38,7 @@
                 <section class="esh-orders_detail-title col-2">@Model.Status</section>
                 @if (rfidScanned != null)
                 {
-                    <section class="esh-orders_detail-title col-2">@rfidScanned</section>
+                    <section class="esh-orders_detail-title col-2" style="color: red">@rfidScanned</section>
                 }
             </article>
         </section>
