@@ -53,7 +53,7 @@
                     <section class="esh-orders-item col-1">@Html.DisplayFor(modelItem => item.OrderNumber)</section>
                     <section class="esh-orders-item col-2">@item.Date.ToShortDateString()</section>
                     <section class="esh-orders-item col-1">$ @Html.DisplayFor(modelItem => item.Total)</section>
-                    <section class="esh-orders-item col-1">@Html.DisplayFor(modelItem => item.Status)</section>
+                    <section class="esh-orders-item col-1" style="overflow: hidden">@Html.DisplayFor(modelItem => item.Status)</section>
                     @if (shippingInfo != null && tenantId == 1)
                     {
                         <section class="esh-orders-item col-2" style="color: red">
