@@ -21,7 +21,7 @@ using System.Web;
 
 namespace Microsoft.eShopOnContainers.BuildingBlocks.EventBusRabbitMQ
 {
-    public class EventBusRabbitMQ : IEventBus, IDisposable
+    public class EventBusRabbitMQ : AbstractEventBus, IDisposable
     {
         const string BROKER_NAME = "eshop_event_bus";
 
@@ -80,7 +80,7 @@ namespace Microsoft.eShopOnContainers.BuildingBlocks.EventBusRabbitMQ
             }
         }
 
-        public void Publish(IntegrationEvent @event)
+        protected override void ActualPublish(IntegrationEvent @event)
         {
             if (!_persistentConnection.IsConnected)
             {
@@ -128,8 +128,7 @@ namespace Microsoft.eShopOnContainers.BuildingBlocks.EventBusRabbitMQ
             }
         }
 
-        public void SubscribeDynamic<TH>(string eventName)
-            where TH : IDynamicIntegrationEventHandler
+        public override void SubscribeDynamic<TH>(string eventName)
         {
             _logger.LogInformation("Subscribing to dynamic event {EventName} with {EventHandler}", eventName,
                 typeof(TH).GetGenericTypeName());
@@ -139,9 +138,7 @@ namespace Microsoft.eShopOnContainers.BuildingBlocks.EventBusRabbitMQ
             StartBasicConsume();
         }
 
-        public void Subscribe<T, TH>()
-            where T : IntegrationEvent
-            where TH : IIntegrationEventHandler<T>
+        public override void Subscribe<T, TH>()
         {
             var eventName = _subsManager.GetEventKey<T>();
             DoInternalSubscription(eventName);
@@ -172,9 +169,7 @@ namespace Microsoft.eShopOnContainers.BuildingBlocks.EventBusRabbitMQ
             }
         }
 
-        public void Unsubscribe<T, TH>()
-            where T : IntegrationEvent
-            where TH : IIntegrationEventHandler<T>
+        public override void Unsubscribe<T, TH>()
         {
             var eventName = _subsManager.GetEventKey<T>();
 
@@ -183,13 +178,12 @@ namespace Microsoft.eShopOnContainers.BuildingBlocks.EventBusRabbitMQ
             _subsManager.RemoveSubscription<T, TH>(vHost);
         }
 
-        public string GetVHost()
+        public override string GetVHost()
         {
             return vHost;
         }
 
-        public void UnsubscribeDynamic<TH>(string eventName)
-            where TH : IDynamicIntegrationEventHandler
+        public override void UnsubscribeDynamic<TH>(string eventName)
         {
             _subsManager.RemoveDynamicSubscription<TH>(eventName, vHost);
         }
@@ -282,64 +276,6 @@ namespace Microsoft.eShopOnContainers.BuildingBlocks.EventBusRabbitMQ
             return channel;
         }
 
-        private async void SendEventToTenant(String content, String id, String eventName, String url)
-        {
-            var temp = new SavedEvent();
-            temp.Content = content;
-            temp.SavedEventId = id;
-            temp.EventName = eventName;
-            string myJson = JsonConvert.SerializeObject(temp);
-            using (var client = new HttpClient())
-            {
-                try
-                {
-                    var response = await client.PostAsync(
-                        url,
-                        new StringContent(myJson, Encoding.UTF8, "application/json"));
-                    response.EnsureSuccessStatusCode();
-                    _logger.LogInformation("----- Event sent to tenant{@id} -----", id);
-                }
-
-                catch (Exception e)
-                {
-                    _logger.LogInformation("----- Exception{@e} -- Event{@id} -----", e, @id);
-                }
-            }
-        }
-
-        private async Task<String> GetCustomisation(String eventName, int tenantId)
-        {
-            CustomisationInfo customisationInfo = new CustomisationInfo();
-            customisationInfo.EventName = eventName;
-            customisationInfo.TenantId = tenantId;
-            String customisationUrl = null;
-
-            var builder = new UriBuilder(tenantManagerUrl + "api/Customisations/IsCustomised");
-            builder.Port = -1;
-            var query = HttpUtility.ParseQueryString(builder.Query);
-            query["eventName"] = eventName;
-            query["tenantId"] = tenantId.ToString();
-            builder.Query = query.ToString();
-            string url = builder.ToString();
-
-            using (var client = new HttpClient())
-            {
-                try
-                {
-                    var response = await client.GetAsync(
-                        url);
-                    response.EnsureSuccessStatusCode();
-                    customisationUrl = response.Content.ReadAsStringAsync().Result;
-                }
-                catch (Exception e)
-                {
-                    _logger.LogInformation("----- Exception{@e}", e);
-                }
-            }
-
-            return customisationUrl;
-        }
-
         private async Task ProcessEvent(string eventName, string message)
         {
             _logger.LogWarning("Processing RabbitMQ event: {EventName}", eventName);
@@ -353,12 +289,10 @@ namespace Microsoft.eShopOnContainers.BuildingBlocks.EventBusRabbitMQ
                     {
                         if (subscription.IsDynamic)
                         {
-                            //TODO check if it is required here aswell
                             var handler =
                                 scope.ResolveOptional(subscription.HandlerType) as IDynamicIntegrationEventHandler;
                             if (handler == null) continue;
                             dynamic eventData = JObject.Parse(message);
-
                             await Task.Yield();
                             await handler.Handle(eventData);
                         }
@@ -369,33 +303,10 @@ namespace Microsoft.eShopOnContainers.BuildingBlocks.EventBusRabbitMQ
                             if (handler == null) continue;
                             var eventType = _subsManager.GetEventTypeByName(eventName);
                             var integrationEvent = JsonConvert.DeserializeObject(message, eventType);
-                            IntegrationEvent evt = (IntegrationEvent) integrationEvent;
-                            var customisationUrl = GetCustomisation(eventName, evt.TenantId).Result;
-                            if (evt.CheckForCustomisation && !String.IsNullOrEmpty(customisationUrl))
-                            {
-                                //Checking if event should be sent to tenant, or handled normally
-                                SendEventToTenant(message, evt.Id.ToString(), eventName,
-                                    customisationUrl);
-                                break;
-                            }
-
                             var concreteType = typeof(IIntegrationEventHandler<>).MakeGenericType(eventType);
-                            var handlerName = handler.ToString();
-                            //Not tenant specific handler
-                            _tenantInfo.TryGetValue(evt.TenantId, out string tenantHandler);
-                            if(String.IsNullOrEmpty(tenantHandler) || !handlerName.Contains(tenantHandler))
-                            {
-                                await Task.Yield();
-                                await (Task) concreteType.GetMethod("Handle")
-                                    .Invoke(handler, new object[] {integrationEvent});
-                            }
-                            //Tenant specific handler, and event belongs to that tenant
-                            else if (!String.IsNullOrEmpty(tenantHandler) && handlerName.Contains(tenantHandler))
-                            {
-                                await Task.Yield();
-                                await (Task) concreteType.GetMethod("Handle")
-                                    .Invoke(handler, new object[] {integrationEvent});
-                            }
+                            await Task.Yield();
+                            await (Task) concreteType.GetMethod("Handle")
+                                .Invoke(handler, new object[] {integrationEvent});
                         }
                     }
                 }

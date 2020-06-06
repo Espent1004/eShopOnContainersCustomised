@@ -1,4 +1,4 @@
-﻿/*namespace Microsoft.eShopOnContainers.BuildingBlocks.EventBusServiceBus
+﻿namespace Microsoft.eShopOnContainers.BuildingBlocks.EventBusServiceBus
 {
     using Autofac;
     using Microsoft.Azure.ServiceBus;
@@ -12,7 +12,7 @@
     using System.Text;
     using System.Threading.Tasks;
 
-    public class EventBusServiceBus : IEventBus
+    public class EventBusServiceBus : AbstractEventBus
     {
         private readonly IServiceBusPersisterConnection _serviceBusPersisterConnection;
         private readonly ILogger<EventBusServiceBus> _logger;
@@ -21,10 +21,11 @@
         private readonly ILifetimeScope _autofac;
         private readonly string AUTOFAC_SCOPE_NAME = "eshop_event_bus";
         private const string INTEGRATION_EVENT_SUFFIX = "IntegrationEvent";
+        private readonly string TOPIC_NAME;
 
         public EventBusServiceBus(IServiceBusPersisterConnection serviceBusPersisterConnection,
             ILogger<EventBusServiceBus> logger, IEventBusSubscriptionsManager subsManager, string subscriptionClientName,
-            ILifetimeScope autofac)
+            ILifetimeScope autofac, String topicName)
         {
             _serviceBusPersisterConnection = serviceBusPersisterConnection;
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -33,12 +34,12 @@
             _subscriptionClient = new SubscriptionClient(serviceBusPersisterConnection.ServiceBusConnectionStringBuilder,
                 subscriptionClientName);
             _autofac = autofac;
-
+            TOPIC_NAME = topicName;
             RemoveDefaultRule();
             RegisterSubscriptionClientMessageHandler();
         }
 
-        public void Publish(IntegrationEvent @event)
+        protected override void ActualPublish(IntegrationEvent @event)
         {
             var eventName = @event.GetType().Name.Replace(INTEGRATION_EVENT_SUFFIX, "");
             var jsonMessage = JsonConvert.SerializeObject(@event);
@@ -58,21 +59,18 @@
                 .GetResult();
         }
 
-        public void SubscribeDynamic<TH>(string eventName)
-            where TH : IDynamicIntegrationEventHandler
+        public override void SubscribeDynamic<TH>(string eventName)
         {
             _logger.LogInformation("Subscribing to dynamic event {EventName} with {EventHandler}", eventName, typeof(TH).Name);
 
-            _subsManager.AddDynamicSubscription<TH>(eventName);
+            _subsManager.AddDynamicSubscription<TH>(eventName, TOPIC_NAME);
         }
 
-        public void Subscribe<T, TH>()
-            where T : IntegrationEvent
-            where TH : IIntegrationEventHandler<T>
+        public override void Subscribe<T, TH>()
         {
             var eventName = typeof(T).Name.Replace(INTEGRATION_EVENT_SUFFIX, "");
 
-            var containsKey = _subsManager.HasSubscriptionsForEvent<T>();
+            var containsKey = _subsManager.HasSubscriptionsForEvent<T>(TOPIC_NAME);
             if (!containsKey)
             {
                 try
@@ -91,12 +89,10 @@
 
             _logger.LogInformation("Subscribing to event {EventName} with {EventHandler}", eventName, typeof(TH).Name);
 
-            _subsManager.AddSubscription<T, TH>();
+            _subsManager.AddSubscription<T, TH>(TOPIC_NAME);
         }
 
-        public void Unsubscribe<T, TH>()
-            where T : IntegrationEvent
-            where TH : IIntegrationEventHandler<T>
+        public override void Unsubscribe<T, TH>()
         {
             var eventName = typeof(T).Name.Replace(INTEGRATION_EVENT_SUFFIX, "");
 
@@ -114,15 +110,19 @@
 
             _logger.LogInformation("Unsubscribing from event {EventName}", eventName);
 
-            _subsManager.RemoveSubscription<T, TH>();
+            _subsManager.RemoveSubscription<T, TH>(TOPIC_NAME);
         }
 
-        public void UnsubscribeDynamic<TH>(string eventName)
-            where TH : IDynamicIntegrationEventHandler
+        public override string GetVHost()
+        {
+            return TOPIC_NAME;
+        }
+
+        public override void UnsubscribeDynamic<TH>(string eventName)
         {
             _logger.LogInformation("Unsubscribing from dynamic event {EventName}", eventName);
 
-            _subsManager.RemoveDynamicSubscription<TH>(eventName);
+            _subsManager.RemoveDynamicSubscription<TH>(eventName, TOPIC_NAME);
         }
 
         public void Dispose()
@@ -160,11 +160,11 @@
         private async Task<bool> ProcessEvent(string eventName, string message)
         {
             var processed = false;
-            if (_subsManager.HasSubscriptionsForEvent(eventName))
+            if (_subsManager.HasSubscriptionsForEvent(eventName, TOPIC_NAME))
             {
                 using (var scope = _autofac.BeginLifetimeScope(AUTOFAC_SCOPE_NAME))
                 {
-                    var subscriptions = _subsManager.GetHandlersForEvent(eventName);
+                    var subscriptions = _subsManager.GetHandlersForEvent(eventName, TOPIC_NAME);
                     foreach (var subscription in subscriptions)
                     {
                         if (subscription.IsDynamic)
@@ -192,7 +192,7 @@
 
         private void RemoveDefaultRule()
         {
-            try
+            /*try
             {
                 _subscriptionClient
                  .RemoveRuleAsync(RuleDescription.DefaultRuleName)
@@ -202,8 +202,7 @@
             catch (MessagingEntityNotFoundException)
             {
                 _logger.LogWarning("The messaging entity {DefaultRuleName} Could not be found.", RuleDescription.DefaultRuleName);
-            }
+            }*/
         }
     }
 }
-*/

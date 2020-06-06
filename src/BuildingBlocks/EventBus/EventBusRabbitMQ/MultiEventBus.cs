@@ -5,12 +5,12 @@ using Microsoft.eShopOnContainers.BuildingBlocks.EventBus.Events;
 
 namespace Microsoft.eShopOnContainers.BuildingBlocks.EventBusRabbitMQ
 {
-    public class MultiEventBusRabbitMQ : IMultiEventBus
+    public class MultiEventBus : IMultiEventBus
     {
         private List<IEventBus> _eventBuses;
         private Dictionary<int, String> _tenants;
 
-        public MultiEventBusRabbitMQ(List<IEventBus> eventBuses, Dictionary<int, String> tenants)
+        public MultiEventBus(List<IEventBus> eventBuses, Dictionary<int, String> tenants)
         {
             _eventBuses = eventBuses;
             _tenants = tenants;

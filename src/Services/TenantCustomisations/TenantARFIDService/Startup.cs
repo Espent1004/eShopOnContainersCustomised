@@ -98,12 +98,14 @@ namespace TenantARFIDService
             app.UseMvcWithDefaultRoute();
 
             app.UseSwagger()
-               .UseSwaggerUI(c =>
-               {
-                   c.SwaggerEndpoint($"{ (!string.IsNullOrEmpty(pathBase) ? pathBase : string.Empty) }/swagger/v1/swagger.json", "Ordering.API V1");
-                   c.OAuthClientId("orderingswaggerui");
-                   c.OAuthAppName("Ordering Swagger UI");
-               });
+                .UseSwaggerUI(c =>
+                {
+                    c.SwaggerEndpoint(
+                        $"{(!string.IsNullOrEmpty(pathBase) ? pathBase : string.Empty)}/swagger/v1/swagger.json",
+                        "Ordering.API V1");
+                    c.OAuthClientId("orderingswaggerui");
+                    c.OAuthAppName("Ordering Swagger UI");
+                });
 
             ConfigureEventBus(app);
             using (var serviceScope = app.ApplicationServices.GetService<IServiceScopeFactory>().CreateScope())
@@ -116,8 +118,11 @@ namespace TenantARFIDService
 
         private void ConfigureEventBus(IApplicationBuilder app)
         {
-            var eventBus = app.ApplicationServices.GetRequiredService<Microsoft.eShopOnContainers.BuildingBlocks.EventBus.Abstractions.IEventBus>();
-            eventBus.Subscribe<OrderStatusChangedToAwaitingValidationSavedIntegrationEvent, OrderStatusChangedToAwaitingValidationSavedIntegrationEventHandler>();
+            var eventBus = app.ApplicationServices
+                .GetRequiredService<Microsoft.eShopOnContainers.BuildingBlocks.EventBus.Abstractions.IEventBus>();
+            eventBus
+                .Subscribe<OrderStatusChangedToAwaitingValidationSavedIntegrationEvent,
+                    OrderStatusChangedToAwaitingValidationSavedIntegrationEventHandler>();
         }
 
         protected virtual void ConfigureAuth(IApplicationBuilder app)
@@ -134,7 +139,8 @@ namespace TenantARFIDService
 
     static class CustomExtensionsMethods
     {
-        public static IServiceCollection AddApplicationInsights(this IServiceCollection services, IConfiguration configuration)
+        public static IServiceCollection AddApplicationInsights(this IServiceCollection services,
+            IConfiguration configuration)
         {
             services.AddApplicationInsightsTelemetry(configuration);
             var orchestratorType = configuration.GetValue<string>("OrchestratorType");
@@ -144,6 +150,7 @@ namespace TenantARFIDService
                 // Enable K8s telemetry initializer
                 services.AddApplicationInsightsKubernetesEnricher();
             }
+
             if (orchestratorType?.ToUpper() == "SF")
             {
                 // Enable SF telemetry initializer
@@ -157,22 +164,19 @@ namespace TenantARFIDService
         public static IServiceCollection AddCustomMvc(this IServiceCollection services)
         {
             // Add framework services.
-            services.AddMvc(options =>
-            {
-                options.Filters.Add(typeof(HttpGlobalExceptionFilter));
-            })
+            services.AddMvc(options => { options.Filters.Add(typeof(HttpGlobalExceptionFilter)); })
                 .SetCompatibilityVersion(CompatibilityVersion.Version_2_2)
-                .AddControllersAsServices();  //Injecting Controllers themselves thru DI
-                                              //For further info see: http://docs.autofac.org/en/latest/integration/aspnetcore.html#controllers-as-services
+                .AddControllersAsServices(); //Injecting Controllers themselves thru DI
+            //For further info see: http://docs.autofac.org/en/latest/integration/aspnetcore.html#controllers-as-services
 
             services.AddCors(options =>
             {
                 options.AddPolicy("CorsPolicy",
                     builder => builder
-                    .SetIsOriginAllowed((host) => true)
-                    .AllowAnyMethod()
-                    .AllowAnyHeader()
-                    .AllowCredentials());
+                        .SetIsOriginAllowed((host) => true)
+                        .AllowAnyMethod()
+                        .AllowAnyHeader()
+                        .AllowCredentials());
             });
 
             return services;
@@ -188,7 +192,7 @@ namespace TenantARFIDService
                 .AddSqlServer(
                     configuration["ConnectionString"],
                     name: "OrderingDB-check",
-                    tags: new string[] { "orderingdb" });
+                    tags: new string[] {"orderingdb"});
 
             if (configuration.GetValue<bool>("AzureServiceBusEnabled"))
             {
@@ -197,7 +201,7 @@ namespace TenantARFIDService
                         configuration["EventBusConnection"],
                         topicName: "eshop_event_bus",
                         name: "ordering-servicebus-check",
-                        tags: new string[] { "servicebus" });
+                        tags: new string[] {"servicebus"});
             }
             else
             {
@@ -205,32 +209,35 @@ namespace TenantARFIDService
                     .AddRabbitMQ(
                         $"amqp://{configuration["EventBusConnection"]}",
                         name: "ordering-rabbitmqbus-check",
-                        tags: new string[] { "rabbitmqbus" });
+                        tags: new string[] {"rabbitmqbus"});
             }
 
             return services;
         }
 
-        public static IServiceCollection AddCustomDbContext(this IServiceCollection services, IConfiguration configuration)
+        public static IServiceCollection AddCustomDbContext(this IServiceCollection services,
+            IConfiguration configuration)
         {
             services.AddDbContext<TenantAContext>(options =>
-                      options.UseSqlServer(configuration["ConnectionString"]));
+                options.UseSqlServer(configuration["ConnectionString"]));
 
             services.AddDbContext<IntegrationEventLogContext>(options =>
             {
                 options.UseSqlServer(configuration["ConnectionString"],
-                                     sqlServerOptionsAction: sqlOptions =>
-                                     {
-                                         sqlOptions.MigrationsAssembly(typeof(Startup).GetTypeInfo().Assembly.GetName().Name);
-                                         //Configuring Connection Resiliency: https://docs.microsoft.com/en-us/ef/core/miscellaneous/connection-resiliency 
-                                         sqlOptions.EnableRetryOnFailure(maxRetryCount: 10, maxRetryDelay: TimeSpan.FromSeconds(30), errorNumbersToAdd: null);
-                                     });
+                    sqlServerOptionsAction: sqlOptions =>
+                    {
+                        sqlOptions.MigrationsAssembly(typeof(Startup).GetTypeInfo().Assembly.GetName().Name);
+                        //Configuring Connection Resiliency: https://docs.microsoft.com/en-us/ef/core/miscellaneous/connection-resiliency 
+                        sqlOptions.EnableRetryOnFailure(maxRetryCount: 10, maxRetryDelay: TimeSpan.FromSeconds(30),
+                            errorNumbersToAdd: null);
+                    });
             });
 
             return services;
         }
 
-        public static IServiceCollection AddCustomSwagger(this IServiceCollection services, IConfiguration configuration)
+        public static IServiceCollection AddCustomSwagger(this IServiceCollection services,
+            IConfiguration configuration)
         {
             services.AddSwaggerGen(options =>
             {
@@ -251,7 +258,7 @@ namespace TenantARFIDService
                     TokenUrl = $"{configuration.GetValue<string>("IdentityUrlExternal")}/connect/token",
                     Scopes = new Dictionary<string, string>()
                     {
-                        { "orders", "Ordering API" }
+                        {"orders", "Ordering API"}
                     }
                 });
 
@@ -261,7 +268,8 @@ namespace TenantARFIDService
             return services;
         }
 
-        public static IServiceCollection AddCustomIntegrations(this IServiceCollection services, IConfiguration configuration)
+        public static IServiceCollection AddCustomIntegrations(this IServiceCollection services,
+            IConfiguration configuration)
         {
             services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
             //services.AddTransient<IIdentityService, IdentityService>();
@@ -319,7 +327,8 @@ namespace TenantARFIDService
             return services;
         }
 
-        public static IServiceCollection AddCustomConfiguration(this IServiceCollection services, IConfiguration configuration)
+        public static IServiceCollection AddCustomConfiguration(this IServiceCollection services,
+            IConfiguration configuration)
         {
             services.AddOptions();
             //services.Configure<OrderingSettings>(configuration);
@@ -336,7 +345,7 @@ namespace TenantARFIDService
 
                     return new BadRequestObjectResult(problemDetails)
                     {
-                        ContentTypes = { "application/problem+json", "application/problem+xml" }
+                        ContentTypes = {"application/problem+json", "application/problem+xml"}
                     };
                 };
             });
@@ -348,20 +357,20 @@ namespace TenantARFIDService
         {
             var subscriptionClientName = configuration["SubscriptionClientName"];
 
-            /*            if (configuration.GetValue<bool>("AzureServiceBusEnabled"))
-                        {
-                            services.AddSingleton<IEventBus, EventBusServiceBus>(sp =>
-                            {
-                                var serviceBusPersisterConnection = sp.GetRequiredService<IServiceBusPersisterConnection>();
-                                var iLifetimeScope = sp.GetRequiredService<ILifetimeScope>();
-                                var logger = sp.GetRequiredService<ILogger<EventBusServiceBus>>();
-                                var eventBusSubcriptionsManager = sp.GetRequiredService<IEventBusSubscriptionsManager>();
+            if (configuration.GetValue<bool>("AzureServiceBusEnabled"))
+            {
+                services.AddSingleton<IEventBus, EventBusServiceBus>(sp =>
+                {
+                    var serviceBusPersisterConnection = sp.GetRequiredService<IServiceBusPersisterConnection>();
+                    var iLifetimeScope = sp.GetRequiredService<ILifetimeScope>();
+                    var logger = sp.GetRequiredService<ILogger<EventBusServiceBus>>();
+                    var eventBusSubcriptionsManager = sp.GetRequiredService<IEventBusSubscriptionsManager>();
 
-                                return new EventBusServiceBus(serviceBusPersisterConnection, logger,
-                                    eventBusSubcriptionsManager, subscriptionClientName, iLifetimeScope);
-                            });
-                        }
-                        else*/
+                    return new EventBusServiceBus(serviceBusPersisterConnection, logger,
+                        eventBusSubcriptionsManager, subscriptionClientName, iLifetimeScope, "TenantA");
+                });
+            }
+            else
             {
                 services.AddSingleton<IEventBus, EventBusRabbitMQ>(sp =>
                 {
@@ -376,7 +385,8 @@ namespace TenantARFIDService
                         retryCount = int.Parse(configuration["EventBusRetryCount"]);
                     }
 
-                    return new EventBusRabbitMQ(rabbitMQPersistentConnection, logger, iLifetimeScope, eventBusSubcriptionsManager, "TenantA", subscriptionClientName, retryCount);
+                    return new EventBusRabbitMQ(rabbitMQPersistentConnection, logger, iLifetimeScope,
+                        eventBusSubcriptionsManager, "TenantA", subscriptionClientName, retryCount);
                 });
             }
 
@@ -386,7 +396,8 @@ namespace TenantARFIDService
             return services;
         }
 
-        public static IServiceCollection AddCustomAuthentication(this IServiceCollection services, IConfiguration configuration)
+        public static IServiceCollection AddCustomAuthentication(this IServiceCollection services,
+            IConfiguration configuration)
         {
             // prevent from mapping "sub" claim to nameidentifier.
             JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Remove("sub");
@@ -397,7 +408,6 @@ namespace TenantARFIDService
             {
                 options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
                 options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-
             }).AddJwtBearer(options =>
             {
                 options.Authority = identityUrl;

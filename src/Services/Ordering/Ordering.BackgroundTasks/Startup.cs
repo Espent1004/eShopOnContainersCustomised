@@ -47,16 +47,43 @@ namespace Ordering.BackgroundTasks
             services.AddSingleton<IHostedService, GracePeriodManagerService>();
 
             //configure event bus related services
-            
-            services.AddSingleton<IMultiRabbitMQPersistentConnections>(sp =>
-            {
-                IMultiRabbitMQPersistentConnections connections = new MultiRabbitMQPersistentConnections();
-                connections.AddConnection(GenerateConnection("TenantA", sp));
-                connections.AddConnection(GenerateConnection("TenantB", sp));
 
-                return connections;
-            });
-            
+            if (Configuration.GetValue<bool>("AzureServiceBusEnabled"))
+            {
+                services.AddSingleton<IMultiServiceBusConnections>(sp =>
+                {
+                    IMultiServiceBusConnections connections = new MultiServiceBusConnections();
+                    var logger = sp.GetRequiredService<ILogger<DefaultServiceBusPersisterConnection>>();
+
+                    var serviceBusConnectionStringTenantA = Configuration["EventBusConnection"];
+                    var serviceBusConnectionTenantA =
+                        new ServiceBusConnectionStringBuilder(serviceBusConnectionStringTenantA);
+
+                    var serviceBusConnectionStringTenantB = Configuration["EventBusConnection"];
+                    var serviceBusConnectionTenantB =
+                        new ServiceBusConnectionStringBuilder(serviceBusConnectionStringTenantB);
+
+                    connections.AddConnection(
+                        new DefaultServiceBusPersisterConnection(serviceBusConnectionTenantA, logger));
+                    connections.AddConnection(
+                        new DefaultServiceBusPersisterConnection(serviceBusConnectionTenantB, logger));
+
+                    return connections;
+                });
+            }
+
+            else
+            {
+                services.AddSingleton<IMultiRabbitMQPersistentConnections>(sp =>
+                {
+                    IMultiRabbitMQPersistentConnections connections = new MultiRabbitMQPersistentConnections();
+                    connections.AddConnection(GenerateConnection("TenantA", sp));
+                    connections.AddConnection(GenerateConnection("TenantB", sp));
+
+                    return connections;
+                });
+            }
+
 
             RegisterEventBus(services);
 
@@ -119,33 +146,55 @@ namespace Ordering.BackgroundTasks
         private void RegisterEventBus(IServiceCollection services)
         {
             var subscriptionClientName = Configuration["SubscriptionClientName"];
-            
-            services.AddSingleton<IMultiEventBus, MultiEventBusRabbitMQ>(sp =>
+
+            if (Configuration.GetValue<bool>("AzureServiceBusEnabled"))
             {
-                var multiRabbitMqPersistentConnections = sp.GetRequiredService<IMultiRabbitMQPersistentConnections>();
-                var iLifetimeScope = sp.GetRequiredService<ILifetimeScope>();
-                var logger = sp.GetRequiredService<ILogger<EventBusRabbitMQ>>();
-                var eventBusSubcriptionsManager = sp.GetRequiredService<IEventBusSubscriptionsManager>();
-
-                var retryCount = 5;
-                if (!string.IsNullOrEmpty(Configuration["EventBusRetryCount"]))
+                services.AddSingleton<IMultiEventBus, MultiEventBus>(sp =>
                 {
-                    retryCount = int.Parse(Configuration["EventBusRetryCount"]);
-                }
+                    var multiServiceBusConnections = sp.GetRequiredService<IMultiServiceBusConnections>();
+                    var iLifetimeScope = sp.GetRequiredService<ILifetimeScope>();
+                    var logger = sp.GetRequiredService<ILogger<EventBusServiceBus>>();
+                    var eventBusSubcriptionsManager = sp.GetRequiredService<IEventBusSubscriptionsManager>();
+                    List<IEventBus> eventBuses = new List<IEventBus>();
+                    eventBuses.Add(new EventBusServiceBus(multiServiceBusConnections.GetConnections()[0], logger,
+                        eventBusSubcriptionsManager, subscriptionClientName, iLifetimeScope, "TenantA"));
+                    eventBuses.Add(new EventBusServiceBus(multiServiceBusConnections.GetConnections()[1], logger,
+                        eventBusSubcriptionsManager, subscriptionClientName, iLifetimeScope, "TenantB"));
+                    Dictionary<int, String> tenants = new Dictionary<int, string>();
+                    tenants.Add(1, "TenantA");
+                    tenants.Add(2, "TenantB");
+                    return new MultiEventBus(eventBuses, tenants);
+                });
+            }
+            else
+            {
+                services.AddSingleton<IMultiEventBus, MultiEventBus>(sp =>
+                {
+                    var multiRabbitMqPersistentConnections =
+                        sp.GetRequiredService<IMultiRabbitMQPersistentConnections>();
+                    var iLifetimeScope = sp.GetRequiredService<ILifetimeScope>();
+                    var logger = sp.GetRequiredService<ILogger<EventBusRabbitMQ>>();
+                    var eventBusSubcriptionsManager = sp.GetRequiredService<IEventBusSubscriptionsManager>();
 
-                List<IEventBus> eventBuses = new List<IEventBus>();
+                    var retryCount = 5;
+                    if (!string.IsNullOrEmpty(Configuration["EventBusRetryCount"]))
+                    {
+                        retryCount = int.Parse(Configuration["EventBusRetryCount"]);
+                    }
 
-                eventBuses.Add(new EventBusRabbitMQ(multiRabbitMqPersistentConnections.GetConnections()[0], logger,
-                    iLifetimeScope, eventBusSubcriptionsManager, "TenantA", subscriptionClientName, retryCount));
-                eventBuses.Add(new EventBusRabbitMQ(multiRabbitMqPersistentConnections.GetConnections()[1], logger,
-                    iLifetimeScope, eventBusSubcriptionsManager, "TenantB", subscriptionClientName, retryCount));
-                Dictionary<int, String> tenants = new Dictionary<int, string>();
-                tenants.Add(1, "TenantA");
-                tenants.Add(2, "TenantB");
+                    List<IEventBus> eventBuses = new List<IEventBus>();
 
-                return new MultiEventBusRabbitMQ(eventBuses, tenants);
-            });
-            
+                    eventBuses.Add(new EventBusRabbitMQ(multiRabbitMqPersistentConnections.GetConnections()[0], logger,
+                        iLifetimeScope, eventBusSubcriptionsManager, "TenantA", subscriptionClientName, retryCount));
+                    eventBuses.Add(new EventBusRabbitMQ(multiRabbitMqPersistentConnections.GetConnections()[1], logger,
+                        iLifetimeScope, eventBusSubcriptionsManager, "TenantB", subscriptionClientName, retryCount));
+                    Dictionary<int, String> tenants = new Dictionary<int, string>();
+                    tenants.Add(1, "TenantA");
+                    tenants.Add(2, "TenantB");
+
+                    return new MultiEventBus(eventBuses, tenants);
+                });
+            }
 
             services.AddSingleton<IEventBusSubscriptionsManager, InMemoryEventBusSubscriptionsManager>();
         }
@@ -153,7 +202,8 @@ namespace Ordering.BackgroundTasks
 
     public static class CustomExtensionMethods
     {
-        public static IServiceCollection AddCustomHealthCheck(this IServiceCollection services, IConfiguration configuration)
+        public static IServiceCollection AddCustomHealthCheck(this IServiceCollection services,
+            IConfiguration configuration)
         {
             var hcBuilder = services.AddHealthChecks();
 
@@ -163,7 +213,7 @@ namespace Ordering.BackgroundTasks
                 .AddSqlServer(
                     configuration["ConnectionString"],
                     name: "OrderingTaskDB-check",
-                    tags: new string[] { "orderingtaskdb" });
+                    tags: new string[] {"orderingtaskdb"});
 
             if (configuration.GetValue<bool>("AzureServiceBusEnabled"))
             {
@@ -172,7 +222,7 @@ namespace Ordering.BackgroundTasks
                         configuration["EventBusConnection"],
                         topicName: "eshop_event_bus",
                         name: "orderingtask-servicebus-check",
-                        tags: new string[] { "servicebus" });
+                        tags: new string[] {"servicebus"});
             }
             else
             {
@@ -180,7 +230,7 @@ namespace Ordering.BackgroundTasks
                     .AddRabbitMQ(
                         $"amqp://{configuration["EventBusConnection"]}",
                         name: "orderingtask-rabbitmqbus-check",
-                        tags: new string[] { "rabbitmqbus" });
+                        tags: new string[] {"rabbitmqbus"});
             }
 
             return services;
