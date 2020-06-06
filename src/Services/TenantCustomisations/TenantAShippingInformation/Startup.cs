@@ -352,7 +352,7 @@ namespace TenantAShippingInformation
         {
             var subscriptionClientName = configuration["SubscriptionClientName"];
 
-/*            if (configuration.GetValue<bool>("AzureServiceBusEnabled"))
+            if (configuration.GetValue<bool>("AzureServiceBusEnabled"))
             {
                 services.AddSingleton<IEventBus, EventBusServiceBus>(sp =>
                 {
@@ -362,10 +362,10 @@ namespace TenantAShippingInformation
                     var eventBusSubcriptionsManager = sp.GetRequiredService<IEventBusSubscriptionsManager>();
 
                     return new EventBusServiceBus(serviceBusPersisterConnection, logger,
-                        eventBusSubcriptionsManager, subscriptionClientName, iLifetimeScope);
+                        eventBusSubcriptionsManager, subscriptionClientName, iLifetimeScope, "TenantA");
                 });
             }
-            else*/
+            else
             {
                 services.AddSingleton<IEventBus, EventBusRabbitMQ>(sp =>
                 {

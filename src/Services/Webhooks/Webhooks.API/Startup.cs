@@ -102,12 +102,14 @@ namespace Webhooks.API
             app.UseMvcWithDefaultRoute();
 
             app.UseSwagger()
-              .UseSwaggerUI(c =>
-              {
-                  c.SwaggerEndpoint($"{ (!string.IsNullOrEmpty(pathBase) ? pathBase : string.Empty) }/swagger/v1/swagger.json", "Webhooks.API V1");
-                  c.OAuthClientId("webhooksswaggerui");
-                  c.OAuthAppName("WebHooks Service Swagger UI");
-              });
+                .UseSwaggerUI(c =>
+                {
+                    c.SwaggerEndpoint(
+                        $"{(!string.IsNullOrEmpty(pathBase) ? pathBase : string.Empty)}/swagger/v1/swagger.json",
+                        "Webhooks.API V1");
+                    c.OAuthClientId("webhooksswaggerui");
+                    c.OAuthAppName("WebHooks Service Swagger UI");
+                });
 
             ConfigureEventBus(app);
         }
@@ -128,8 +130,11 @@ namespace Webhooks.API
         {
             var eventBus = app.ApplicationServices.GetRequiredService<IMultiEventBus>();
             eventBus.Subscribe<ProductPriceChangedIntegrationEvent, ProductPriceChangedIntegrationEventHandler>();
-            eventBus.Subscribe<OrderStatusChangedToShippedIntegrationEvent, OrderStatusChangedToShippedIntegrationEventHandler>();
-            eventBus.Subscribe<OrderStatusChangedToPaidIntegrationEvent, OrderStatusChangedToPaidIntegrationEventHandler>();
+            eventBus
+                .Subscribe<OrderStatusChangedToShippedIntegrationEvent,
+                    OrderStatusChangedToShippedIntegrationEventHandler>();
+            eventBus
+                .Subscribe<OrderStatusChangedToPaidIntegrationEvent, OrderStatusChangedToPaidIntegrationEventHandler>();
         }
     }
 
@@ -145,6 +150,7 @@ namespace Webhooks.API
                 // Enable K8s telemetry initializer
                 services.AddApplicationInsightsKubernetesEnricher();
             }
+
             if (orchestratorType?.ToUpper() == "SF")
             {
                 // Enable SF telemetry initializer
@@ -157,10 +163,7 @@ namespace Webhooks.API
 
         public static IServiceCollection AddCustomMVC(this IServiceCollection services, IConfiguration configuration)
         {
-            services.AddMvc(options =>
-            {
-                options.Filters.Add(typeof(HttpGlobalExceptionFilter));
-            })
+            services.AddMvc(options => { options.Filters.Add(typeof(HttpGlobalExceptionFilter)); })
                 .SetCompatibilityVersion(CompatibilityVersion.Version_2_2)
                 .AddControllersAsServices();
 
@@ -168,26 +171,28 @@ namespace Webhooks.API
             {
                 options.AddPolicy("CorsPolicy",
                     builder => builder
-                    .SetIsOriginAllowed((host) => true)
-                    .AllowAnyMethod()
-                    .AllowAnyHeader()
-                    .AllowCredentials());
+                        .SetIsOriginAllowed((host) => true)
+                        .AllowAnyMethod()
+                        .AllowAnyHeader()
+                        .AllowCredentials());
             });
 
             return services;
         }
 
-        public static IServiceCollection AddCustomDbContext(this IServiceCollection services, IConfiguration configuration)
+        public static IServiceCollection AddCustomDbContext(this IServiceCollection services,
+            IConfiguration configuration)
         {
             services.AddDbContext<WebhooksContext>(options =>
             {
                 options.UseSqlServer(configuration["ConnectionString"],
-                                     sqlServerOptionsAction: sqlOptions =>
-                                     {
-                                         sqlOptions.MigrationsAssembly(typeof(Startup).GetTypeInfo().Assembly.GetName().Name);
-                                         //Configuring Connection Resiliency: https://docs.microsoft.com/en-us/ef/core/miscellaneous/connection-resiliency 
-                                         sqlOptions.EnableRetryOnFailure(maxRetryCount: 10, maxRetryDelay: TimeSpan.FromSeconds(30), errorNumbersToAdd: null);
-                                     });
+                    sqlServerOptionsAction: sqlOptions =>
+                    {
+                        sqlOptions.MigrationsAssembly(typeof(Startup).GetTypeInfo().Assembly.GetName().Name);
+                        //Configuring Connection Resiliency: https://docs.microsoft.com/en-us/ef/core/miscellaneous/connection-resiliency 
+                        sqlOptions.EnableRetryOnFailure(maxRetryCount: 10, maxRetryDelay: TimeSpan.FromSeconds(30),
+                            errorNumbersToAdd: null);
+                    });
 
                 // Changing default behavior when client evaluation occurs to throw. 
                 // Default in EF Core would be to log a warning when client evaluation is performed.
@@ -207,7 +212,8 @@ namespace Webhooks.API
                 {
                     Title = "eShopOnContainers - Webhooks HTTP API",
                     Version = "v1",
-                    Description = "The Webhooks Microservice HTTP API. This is a simple webhooks CRUD registration entrypoint",
+                    Description =
+                        "The Webhooks Microservice HTTP API. This is a simple webhooks CRUD registration entrypoint",
                     TermsOfService = "Terms Of Service"
                 });
 
@@ -219,7 +225,7 @@ namespace Webhooks.API
                     TokenUrl = $"{configuration.GetValue<string>("IdentityUrlExternal")}/connect/token",
                     Scopes = new Dictionary<string, string>()
                     {
-                        { "webhooks", "Webhooks API" }
+                        {"webhooks", "Webhooks API"}
                     }
                 });
 
@@ -228,13 +234,35 @@ namespace Webhooks.API
 
             return services;
         }
+
         public static IServiceCollection AddEventBus(this IServiceCollection services, IConfiguration configuration)
         {
             var subscriptionClientName = configuration["SubscriptionClientName"];
-                
-                services.AddSingleton<IMultiEventBus, MultiEventBusRabbitMQ>(sp =>
+            if (configuration.GetValue<bool>("AzureServiceBusEnabled"))
+            {
+                services.AddSingleton<IMultiEventBus, MultiEventBus>(sp =>
                 {
-                    var multiRabbitMqPersistentConnections = sp.GetRequiredService<IMultiRabbitMQPersistentConnections>();
+                    var multiServiceBusConnections = sp.GetRequiredService<IMultiServiceBusConnections>();
+                    var iLifetimeScope = sp.GetRequiredService<ILifetimeScope>();
+                    var logger = sp.GetRequiredService<ILogger<EventBusServiceBus>>();
+                    var eventBusSubcriptionsManager = sp.GetRequiredService<IEventBusSubscriptionsManager>();
+                    List<IEventBus> eventBuses = new List<IEventBus>();
+                    eventBuses.Add(new EventBusServiceBus(multiServiceBusConnections.GetConnections()[0], logger,
+                        eventBusSubcriptionsManager, subscriptionClientName, iLifetimeScope, "TenantA"));
+                    eventBuses.Add(new EventBusServiceBus(multiServiceBusConnections.GetConnections()[1], logger,
+                        eventBusSubcriptionsManager, subscriptionClientName, iLifetimeScope, "TenantB"));
+                    Dictionary<int, String> tenants = new Dictionary<int, string>();
+                    tenants.Add(1, "TenantA");
+                    tenants.Add(2, "TenantB");
+                    return new MultiEventBus(eventBuses, tenants);
+                });
+            }
+            else
+            {
+                services.AddSingleton<IMultiEventBus, MultiEventBus>(sp =>
+                {
+                    var multiRabbitMqPersistentConnections =
+                        sp.GetRequiredService<IMultiRabbitMQPersistentConnections>();
                     var iLifetimeScope = sp.GetRequiredService<ILifetimeScope>();
                     var logger = sp.GetRequiredService<ILogger<EventBusRabbitMQ>>();
                     var eventBusSubcriptionsManager = sp.GetRequiredService<IEventBusSubscriptionsManager>();
@@ -255,9 +283,10 @@ namespace Webhooks.API
                     tenants.Add(1, "TenantA");
                     tenants.Add(2, "TenantB");
 
-                    return new MultiEventBusRabbitMQ(eventBuses, tenants);
+                    return new MultiEventBus(eventBuses, tenants);
                 });
-            
+            }
+
 
             services.AddSingleton<IEventBusSubscriptionsManager, InMemoryEventBusSubscriptionsManager>();
             services.AddTransient<ProductPriceChangedIntegrationEventHandler>();
@@ -266,7 +295,8 @@ namespace Webhooks.API
             return services;
         }
 
-        public static IServiceCollection AddCustomHealthCheck(this IServiceCollection services, IConfiguration configuration)
+        public static IServiceCollection AddCustomHealthCheck(this IServiceCollection services,
+            IConfiguration configuration)
         {
             var accountName = configuration.GetValue<string>("AzureStorageAccountName");
             var accountKey = configuration.GetValue<string>("AzureStorageAccountKey");
@@ -278,42 +308,70 @@ namespace Webhooks.API
                 .AddSqlServer(
                     configuration["ConnectionString"],
                     name: "WebhooksApiDb-check",
-                    tags: new string[] { "webhooksdb" });
+                    tags: new string[] {"webhooksdb"});
 
             return services;
         }
 
-        public static IServiceCollection AddHttpClientServices(this IServiceCollection services, IConfiguration configuration)
+        public static IServiceCollection AddHttpClientServices(this IServiceCollection services,
+            IConfiguration configuration)
         {
             services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
             services.AddHttpClient("extendedhandlerlifetime").SetHandlerLifetime(Timeout.InfiniteTimeSpan);
             //add http client services
             services.AddHttpClient("GrantClient")
-                   .SetHandlerLifetime(TimeSpan.FromMinutes(5))
-                   .AddDevspacesSupport();
+                .SetHandlerLifetime(TimeSpan.FromMinutes(5))
+                .AddDevspacesSupport();
             return services;
         }
 
-        public static IServiceCollection AddIntegrationServices(this IServiceCollection services, IConfiguration configuration)
+        public static IServiceCollection AddIntegrationServices(this IServiceCollection services,
+            IConfiguration configuration)
         {
             services.AddTransient<Func<DbConnection, IIntegrationEventLogService>>(
                 sp => (DbConnection c) => new IntegrationEventLogService(c));
-            
-            
-            services.AddSingleton<IMultiRabbitMQPersistentConnections>(sp =>
-            {
-                IMultiRabbitMQPersistentConnections connections = new MultiRabbitMQPersistentConnections();
-                connections.AddConnection(GenerateConnection("TenantA", sp, configuration));
-                connections.AddConnection(GenerateConnection("TenantB", sp, configuration));
 
-                return connections;
-            });
-            
+            if (configuration.GetValue<bool>("AzureServiceBusEnabled"))
+            {
+                services.AddSingleton<IMultiServiceBusConnections>(sp =>
+                {
+                    IMultiServiceBusConnections connections = new MultiServiceBusConnections();
+                    var logger = sp.GetRequiredService<ILogger<DefaultServiceBusPersisterConnection>>();
+
+                    var serviceBusConnectionStringTenantA = configuration["EventBusConnection"];
+                    var serviceBusConnectionTenantA =
+                        new ServiceBusConnectionStringBuilder(serviceBusConnectionStringTenantA);
+
+                    var serviceBusConnectionStringTenantB = configuration["EventBusConnection"];
+                    var serviceBusConnectionTenantB =
+                        new ServiceBusConnectionStringBuilder(serviceBusConnectionStringTenantB);
+
+                    connections.AddConnection(
+                        new DefaultServiceBusPersisterConnection(serviceBusConnectionTenantA, logger));
+                    connections.AddConnection(
+                        new DefaultServiceBusPersisterConnection(serviceBusConnectionTenantB, logger));
+
+                    return connections;
+                });
+            }
+            else
+            {
+                services.AddSingleton<IMultiRabbitMQPersistentConnections>(sp =>
+                {
+                    IMultiRabbitMQPersistentConnections connections = new MultiRabbitMQPersistentConnections();
+                    connections.AddConnection(GenerateConnection("TenantA", sp, configuration));
+                    connections.AddConnection(GenerateConnection("TenantB", sp, configuration));
+
+                    return connections;
+                });
+            }
+
 
             return services;
         }
 
-        private static IRabbitMQPersistentConnection GenerateConnection(String vHost, IServiceProvider sp, IConfiguration configuration)
+        private static IRabbitMQPersistentConnection GenerateConnection(String vHost, IServiceProvider sp,
+            IConfiguration configuration)
         {
             var logger = sp.GetRequiredService<ILogger<DefaultRabbitMQPersistentConnection>>();
 
@@ -343,8 +401,9 @@ namespace Webhooks.API
 
             return new DefaultRabbitMQPersistentConnection(factory, logger, retryCount);
         }
-        
-        public static IServiceCollection AddCustomAuthentication(this IServiceCollection services, IConfiguration configuration)
+
+        public static IServiceCollection AddCustomAuthentication(this IServiceCollection services,
+            IConfiguration configuration)
         {
             // prevent from mapping "sub" claim to nameidentifier.
             JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Remove("sub");
@@ -355,7 +414,6 @@ namespace Webhooks.API
             {
                 options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
                 options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-
             }).AddJwtBearer(options =>
             {
                 options.Authority = identityUrl;

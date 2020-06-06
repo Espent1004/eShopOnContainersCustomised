@@ -58,7 +58,6 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API
             var container = new ContainerBuilder();
             container.Populate(services);
             return new AutofacServiceProvider(container.Build());
-
         }
 
         public void Configure(IApplicationBuilder app, IHostingEnvironment env, ILoggerFactory loggerFactory)
@@ -92,10 +91,12 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API
             app.UseMvcWithDefaultRoute();
 
             app.UseSwagger()
-              .UseSwaggerUI(c =>
-              {
-                  c.SwaggerEndpoint($"{ (!string.IsNullOrEmpty(pathBase) ? pathBase : string.Empty) }/swagger/v1/swagger.json", "Catalog.API V1");
-              });
+                .UseSwaggerUI(c =>
+                {
+                    c.SwaggerEndpoint(
+                        $"{(!string.IsNullOrEmpty(pathBase) ? pathBase : string.Empty)}/swagger/v1/swagger.json",
+                        "Catalog.API V1");
+                });
 
             ConfigureEventBus(app);
         }
@@ -103,8 +104,11 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API
         protected virtual void ConfigureEventBus(IApplicationBuilder app)
         {
             var eventBus = app.ApplicationServices.GetRequiredService<IMultiEventBus>();
-            eventBus.Subscribe<OrderStatusChangedToAwaitingValidationIntegrationEvent, OrderStatusChangedToAwaitingValidationIntegrationEventHandler>();
-            eventBus.Subscribe<OrderStatusChangedToPaidIntegrationEvent, OrderStatusChangedToPaidIntegrationEventHandler>();
+            eventBus
+                .Subscribe<OrderStatusChangedToAwaitingValidationIntegrationEvent,
+                    OrderStatusChangedToAwaitingValidationIntegrationEventHandler>();
+            eventBus
+                .Subscribe<OrderStatusChangedToPaidIntegrationEvent, OrderStatusChangedToPaidIntegrationEventHandler>();
         }
     }
 
@@ -120,6 +124,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API
                 // Enable K8s telemetry initializer
                 services.AddApplicationInsightsKubernetesEnricher();
             }
+
             if (orchestratorType?.ToUpper() == "SF")
             {
                 // Enable SF telemetry initializer
@@ -131,11 +136,8 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API
         }
 
         public static IServiceCollection AddCustomMVC(this IServiceCollection services, IConfiguration configuration)
-        {                                        
-            services.AddMvc(options =>
-                {
-                    options.Filters.Add(typeof(HttpGlobalExceptionFilter));
-                })
+        {
+            services.AddMvc(options => { options.Filters.Add(typeof(HttpGlobalExceptionFilter)); })
                 .SetCompatibilityVersion(CompatibilityVersion.Version_2_2)
                 .AddControllersAsServices();
 
@@ -143,16 +145,17 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API
             {
                 options.AddPolicy("CorsPolicy",
                     builder => builder
-                    .SetIsOriginAllowed((host) => true)
-                    .AllowAnyMethod()
-                    .AllowAnyHeader()
-                    .AllowCredentials());
+                        .SetIsOriginAllowed((host) => true)
+                        .AllowAnyMethod()
+                        .AllowAnyHeader()
+                        .AllowCredentials());
             });
 
             return services;
         }
 
-        public static IServiceCollection AddCustomHealthCheck(this IServiceCollection services, IConfiguration configuration)
+        public static IServiceCollection AddCustomHealthCheck(this IServiceCollection services,
+            IConfiguration configuration)
         {
             var accountName = configuration.GetValue<string>("AzureStorageAccountName");
             var accountKey = configuration.GetValue<string>("AzureStorageAccountKey");
@@ -164,15 +167,15 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API
                 .AddSqlServer(
                     configuration["ConnectionString"],
                     name: "CatalogDB-check",
-                    tags: new string[] { "catalogdb" });
+                    tags: new string[] {"catalogdb"});
 
             if (!string.IsNullOrEmpty(accountName) && !string.IsNullOrEmpty(accountKey))
-            {                
+            {
                 hcBuilder
                     .AddAzureBlobStorage(
                         $"DefaultEndpointsProtocol=https;AccountName={accountName};AccountKey={accountKey};EndpointSuffix=core.windows.net",
                         name: "catalog-storage-check",
-                        tags: new string[] { "catalogstorage" });
+                        tags: new string[] {"catalogstorage"});
             }
 
             if (configuration.GetValue<bool>("AzureServiceBusEnabled"))
@@ -182,7 +185,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API
                         configuration["EventBusConnection"],
                         topicName: "eshop_event_bus",
                         name: "catalog-servicebus-check",
-                        tags: new string[] { "servicebus" });
+                        tags: new string[] {"servicebus"});
             }
             else
             {
@@ -190,23 +193,25 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API
                     .AddRabbitMQ(
                         $"amqp://{configuration["EventBusConnection"]}",
                         name: "catalog-rabbitmqbus-check",
-                        tags: new string[] { "rabbitmqbus" });
+                        tags: new string[] {"rabbitmqbus"});
             }
 
             return services;
         }
 
-        public static IServiceCollection AddCustomDbContext(this IServiceCollection services, IConfiguration configuration)
+        public static IServiceCollection AddCustomDbContext(this IServiceCollection services,
+            IConfiguration configuration)
         {
             services.AddDbContext<CatalogContext>(options =>
             {
                 options.UseSqlServer(configuration["ConnectionString"],
-                                     sqlServerOptionsAction: sqlOptions =>
-                                     {
-                                         sqlOptions.MigrationsAssembly(typeof(Startup).GetTypeInfo().Assembly.GetName().Name);
-                                         //Configuring Connection Resiliency: https://docs.microsoft.com/en-us/ef/core/miscellaneous/connection-resiliency 
-                                         sqlOptions.EnableRetryOnFailure(maxRetryCount: 10, maxRetryDelay: TimeSpan.FromSeconds(30), errorNumbersToAdd: null);
-                                     });
+                    sqlServerOptionsAction: sqlOptions =>
+                    {
+                        sqlOptions.MigrationsAssembly(typeof(Startup).GetTypeInfo().Assembly.GetName().Name);
+                        //Configuring Connection Resiliency: https://docs.microsoft.com/en-us/ef/core/miscellaneous/connection-resiliency 
+                        sqlOptions.EnableRetryOnFailure(maxRetryCount: 10, maxRetryDelay: TimeSpan.FromSeconds(30),
+                            errorNumbersToAdd: null);
+                    });
 
                 // Changing default behavior when client evaluation occurs to throw. 
                 // Default in EF Core would be to log a warning when client evaluation is performed.
@@ -217,18 +222,20 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API
             services.AddDbContext<IntegrationEventLogContext>(options =>
             {
                 options.UseSqlServer(configuration["ConnectionString"],
-                                     sqlServerOptionsAction: sqlOptions =>
-                                     {
-                                         sqlOptions.MigrationsAssembly(typeof(Startup).GetTypeInfo().Assembly.GetName().Name);
-                                         //Configuring Connection Resiliency: https://docs.microsoft.com/en-us/ef/core/miscellaneous/connection-resiliency 
-                                         sqlOptions.EnableRetryOnFailure(maxRetryCount: 10, maxRetryDelay: TimeSpan.FromSeconds(30), errorNumbersToAdd: null);
-                                     });
+                    sqlServerOptionsAction: sqlOptions =>
+                    {
+                        sqlOptions.MigrationsAssembly(typeof(Startup).GetTypeInfo().Assembly.GetName().Name);
+                        //Configuring Connection Resiliency: https://docs.microsoft.com/en-us/ef/core/miscellaneous/connection-resiliency 
+                        sqlOptions.EnableRetryOnFailure(maxRetryCount: 10, maxRetryDelay: TimeSpan.FromSeconds(30),
+                            errorNumbersToAdd: null);
+                    });
             });
 
             return services;
         }
 
-        public static IServiceCollection AddCustomOptions(this IServiceCollection services, IConfiguration configuration)
+        public static IServiceCollection AddCustomOptions(this IServiceCollection services,
+            IConfiguration configuration)
         {
             services.Configure<CatalogSettings>(configuration);
             services.Configure<ApiBehaviorOptions>(options =>
@@ -244,7 +251,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API
 
                     return new BadRequestObjectResult(problemDetails)
                     {
-                        ContentTypes = { "application/problem+json", "application/problem+xml" }
+                        ContentTypes = {"application/problem+json", "application/problem+xml"}
                     };
                 };
             });
@@ -267,48 +274,74 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API
             });
 
             return services;
-
         }
 
-        public static IServiceCollection AddIntegrationServices(this IServiceCollection services, IConfiguration configuration)
+        public static IServiceCollection AddIntegrationServices(this IServiceCollection services,
+            IConfiguration configuration)
         {
             services.AddTransient<Func<DbConnection, IIntegrationEventLogService>>(
                 sp => (DbConnection c) => new IntegrationEventLogService(c));
 
             services.AddTransient<ICatalogIntegrationEventService, CatalogIntegrationEventService>();
-            
-                services.AddSingleton<IRabbitMQPersistentConnection>(sp =>
+
+            services.AddSingleton<IRabbitMQPersistentConnection>(sp =>
+            {
+                var settings = sp.GetRequiredService<IOptions<CatalogSettings>>().Value;
+                var logger = sp.GetRequiredService<ILogger<DefaultRabbitMQPersistentConnection>>();
+
+                var factory = new ConnectionFactory()
                 {
-                    var settings = sp.GetRequiredService<IOptions<CatalogSettings>>().Value;
-                    var logger = sp.GetRequiredService<ILogger<DefaultRabbitMQPersistentConnection>>();
+                    HostName = configuration["EventBusConnection"],
+                    DispatchConsumersAsync = true
+                };
 
-                    var factory = new ConnectionFactory()
-                    {
-                        HostName = configuration["EventBusConnection"],
-                        DispatchConsumersAsync = true
-                    };
+                if (!string.IsNullOrEmpty(configuration["EventBusUserName"]))
+                {
+                    factory.UserName = configuration["EventBusUserName"];
+                }
 
-                    if (!string.IsNullOrEmpty(configuration["EventBusUserName"]))
-                    {
-                        factory.UserName = configuration["EventBusUserName"];
-                    }
+                if (!string.IsNullOrEmpty(configuration["EventBusPassword"]))
+                {
+                    factory.Password = configuration["EventBusPassword"];
+                }
 
-                    if (!string.IsNullOrEmpty(configuration["EventBusPassword"]))
-                    {
-                        factory.Password = configuration["EventBusPassword"];
-                    }
-                    
-                    factory.VirtualHost = "TenantA";
+                factory.VirtualHost = "TenantA";
 
-                    var retryCount = 5;
-                    if (!string.IsNullOrEmpty(configuration["EventBusRetryCount"]))
-                    {
-                        retryCount = int.Parse(configuration["EventBusRetryCount"]);
-                    }
+                var retryCount = 5;
+                if (!string.IsNullOrEmpty(configuration["EventBusRetryCount"]))
+                {
+                    retryCount = int.Parse(configuration["EventBusRetryCount"]);
+                }
 
-                    return new DefaultRabbitMQPersistentConnection(factory, logger, retryCount);
+                return new DefaultRabbitMQPersistentConnection(factory, logger, retryCount);
+            });
+
+            if (configuration.GetValue<bool>("AzureServiceBusEnabled"))
+            {
+                services.AddSingleton<IMultiServiceBusConnections>(sp =>
+                {
+                    IMultiServiceBusConnections connections = new MultiServiceBusConnections();
+                    var logger = sp.GetRequiredService<ILogger<DefaultServiceBusPersisterConnection>>();
+
+                    var serviceBusConnectionStringTenantA = configuration["EventBusConnection"];
+                    var serviceBusConnectionTenantA =
+                        new ServiceBusConnectionStringBuilder(serviceBusConnectionStringTenantA);
+
+                    var serviceBusConnectionStringTenantB = configuration["EventBusConnection"];
+                    var serviceBusConnectionTenantB =
+                        new ServiceBusConnectionStringBuilder(serviceBusConnectionStringTenantB);
+
+                    connections.AddConnection(
+                        new DefaultServiceBusPersisterConnection(serviceBusConnectionTenantA, logger));
+                    connections.AddConnection(
+                        new DefaultServiceBusPersisterConnection(serviceBusConnectionTenantB, logger));
+
+                    return connections;
                 });
-                
+            }
+
+            else
+            {
                 services.AddSingleton<IMultiRabbitMQPersistentConnections>(sp =>
                 {
                     IMultiRabbitMQPersistentConnections connections = new MultiRabbitMQPersistentConnections();
@@ -317,11 +350,14 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API
 
                     return connections;
                 });
+            }
+
             return services;
         }
 
-        
-        private static IRabbitMQPersistentConnection GenerateConnection(String vHost, IServiceProvider sp, IConfiguration configuration)
+
+        private static IRabbitMQPersistentConnection GenerateConnection(String vHost, IServiceProvider sp,
+            IConfiguration configuration)
         {
             var logger = sp.GetRequiredService<ILogger<DefaultRabbitMQPersistentConnection>>();
 
@@ -351,36 +387,59 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API
 
             return new DefaultRabbitMQPersistentConnection(factory, logger, retryCount);
         }
-        
+
         public static IServiceCollection AddEventBus(this IServiceCollection services, IConfiguration configuration)
         {
             var subscriptionClientName = configuration["SubscriptionClientName"];
-            
-            services.AddSingleton<IMultiEventBus, MultiEventBusRabbitMQ>(sp =>
+            if (configuration.GetValue<bool>("AzureServiceBusEnabled"))
             {
-                var multiRabbitMqPersistentConnections = sp.GetRequiredService<IMultiRabbitMQPersistentConnections>();
-                var iLifetimeScope = sp.GetRequiredService<ILifetimeScope>();
-                var logger = sp.GetRequiredService<ILogger<EventBusRabbitMQ>>();
-                var eventBusSubcriptionsManager = sp.GetRequiredService<IEventBusSubscriptionsManager>();
-
-                var retryCount = 5;
-                if (!string.IsNullOrEmpty(configuration["EventBusRetryCount"]))
+                services.AddSingleton<IMultiEventBus, MultiEventBus>(sp =>
                 {
-                    retryCount = int.Parse(configuration["EventBusRetryCount"]);
-                }
+                    var multiServiceBusConnections = sp.GetRequiredService<IMultiServiceBusConnections>();
+                    var iLifetimeScope = sp.GetRequiredService<ILifetimeScope>();
+                    var logger = sp.GetRequiredService<ILogger<EventBusServiceBus>>();
+                    var eventBusSubcriptionsManager = sp.GetRequiredService<IEventBusSubscriptionsManager>();
+                    List<IEventBus> eventBuses = new List<IEventBus>();
+                    eventBuses.Add(new EventBusServiceBus(multiServiceBusConnections.GetConnections()[0], logger,
+                        eventBusSubcriptionsManager, subscriptionClientName, iLifetimeScope, "TenantA"));
+                    eventBuses.Add(new EventBusServiceBus(multiServiceBusConnections.GetConnections()[1], logger,
+                        eventBusSubcriptionsManager, subscriptionClientName, iLifetimeScope, "TenantB"));
+                    Dictionary<int, String> tenants = new Dictionary<int, string>();
+                    tenants.Add(1, "TenantA");
+                    tenants.Add(2, "TenantB");
+                    return new MultiEventBus(eventBuses, tenants);
+                });
+            }
+            else
+            {
+                services.AddSingleton<IMultiEventBus, MultiEventBus>(sp =>
+                {
+                    var multiRabbitMqPersistentConnections =
+                        sp.GetRequiredService<IMultiRabbitMQPersistentConnections>();
+                    var iLifetimeScope = sp.GetRequiredService<ILifetimeScope>();
+                    var logger = sp.GetRequiredService<ILogger<EventBusRabbitMQ>>();
+                    var eventBusSubcriptionsManager = sp.GetRequiredService<IEventBusSubscriptionsManager>();
 
-                List<IEventBus> eventBuses = new List<IEventBus>();
+                    var retryCount = 5;
+                    if (!string.IsNullOrEmpty(configuration["EventBusRetryCount"]))
+                    {
+                        retryCount = int.Parse(configuration["EventBusRetryCount"]);
+                    }
 
-                eventBuses.Add(new EventBusRabbitMQ(multiRabbitMqPersistentConnections.GetConnections()[0], logger,
-                    iLifetimeScope, eventBusSubcriptionsManager, "TenantA", subscriptionClientName, retryCount));
-                eventBuses.Add(new EventBusRabbitMQ(multiRabbitMqPersistentConnections.GetConnections()[1], logger,
-                    iLifetimeScope, eventBusSubcriptionsManager, "TenantB", subscriptionClientName, retryCount));
-                Dictionary<int, String> tenants = new Dictionary<int, string>();
-                tenants.Add(1, "TenantA");
-                tenants.Add(2, "TenantB");
+                    List<IEventBus> eventBuses = new List<IEventBus>();
 
-                return new MultiEventBusRabbitMQ(eventBuses, tenants);
-            });
+                    eventBuses.Add(new EventBusRabbitMQ(multiRabbitMqPersistentConnections.GetConnections()[0], logger,
+                        iLifetimeScope, eventBusSubcriptionsManager, "TenantA", subscriptionClientName, retryCount));
+                    eventBuses.Add(new EventBusRabbitMQ(multiRabbitMqPersistentConnections.GetConnections()[1], logger,
+                        iLifetimeScope, eventBusSubcriptionsManager, "TenantB", subscriptionClientName, retryCount));
+                    Dictionary<int, String> tenants = new Dictionary<int, string>();
+                    tenants.Add(1, "TenantA");
+                    tenants.Add(2, "TenantB");
+
+                    return new MultiEventBus(eventBuses, tenants);
+                });
+            }
+
 
             services.AddSingleton<IEventBusSubscriptionsManager, InMemoryEventBusSubscriptionsManager>();
             services.AddTransient<OrderStatusChangedToAwaitingValidationIntegrationEventHandler>();
